@@ -1,9 +1,9 @@
-```markdown
+
 # PDF Custom Date Setter (Internal Metadata & Windows Timestamps)
 
 এই স্ক্রিপ্টটি কোনো নির্দেশিত তারিখ (`YYYY-MM-DD HH:MM:SS`) অনুযায়ী নির্দিষ্ট ফোল্ডারের সমস্ত PDF ফাইলের অভ্যন্তরীণ মেটাডেটা (CreationDate ও ModDate) এবং Windows OS Level-এর টাইমেস্ট্যাম্প (Created, Modified, and Accessed Date) একই সময়ে পরিবর্তন করে দেয়[cite: 3]।
 
----
+
 
 ## 🚀 কীভাবে ব্যবহার করবেন (Usage)
 
