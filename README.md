@@ -22,7 +22,7 @@
   ```cmd
   pip install pymupdf
 ```
-## 🛠️ স্ক্রিপ্টসমূহের বিস্তারিত ও ব্যবহারের নির্দেশিকা
+## স্ক্রিপ্টসমূহের বিস্তারিত ও ব্যবহারের নির্দেশিকা
 
 ### ১. `pdfsize-adjust.py` (PDF Size Adjuster & ModDate Stripper)
 
