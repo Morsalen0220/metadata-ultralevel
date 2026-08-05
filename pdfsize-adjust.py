@@ -1,62 +1,50 @@
 import os
 import sys
-import fitz
 
-def adjust_pdf_size(pdf_path, min_kb=60, max_kb=67):
-    min_bytes = min_kb * 1024
-    max_bytes = max_kb * 1024
-    target_bytes = 64 * 1024  # ৬০ থেকে ৬৭ KB-এর মাঝামাঝি টার্গেট (৬৪ KB)
+def pad_pdf_to_exact_size(pdf_path, target_kb=66):
+    """
+    মেটাডেটা বা মডিফাই ডেট পরিবর্তন না করে শুধুমাত্র বাইনারি কমেন্ট প্যাডিং 
+    যুক্ত করে সব PDF-কে হুবহু একটি নির্দিষ্ট সাইজে (যেমন: ৬৬ KB) নিয়ে আসবে।
+    """
+    target_bytes = int(target_kb * 1024)
 
     if not os.path.exists(pdf_path):
         return
 
-    current_size = os.path.getsize(pdf_path)
+    file_name = os.path.basename(pdf_path)
+    current_bytes = os.path.getsize(pdf_path)
 
-    # যদি সাইজ ইতিমধ্যেই ৬০ থেকে ৬৭ KB-এর মধ্যে থাকে
-    if min_bytes <= current_size <= max_bytes:
-        print(f"[Skipped] '{os.path.basename(pdf_path)}' is already {current_size/1024:.2f} KB.")
+    # ১. যদি ফাইলের বর্তমান সাইজ টার্গেট সাইজের চেয়ে বড় হয়
+    if current_bytes > target_bytes:
+        print(f"[Warning] '{file_name}' ({current_bytes/1024:.2f} KB) is larger than target {target_kb} KB. Skipped (to avoid modifying metadata).")
         return
 
-    temp_path = f"temp_{os.path.basename(pdf_path)}"
+    # ২. যদি ফাইলের সাইজ ইতিমধ্যেই সমান হয়
+    if current_bytes == target_bytes:
+        print(f"[Skipped] '{file_name}' is already exactly {target_kb} KB.")
+        return
 
+    # ৩. ফাইলের শেষে নিরাপদ বাইনারি কমেন্ট প্যাডিং যুক্ত করা (মেটাডেটা অপরিবর্তিত থাকবে)
     try:
-        # ১. যদি ফাইল ৬৭ KB-এর চেয়ে বড় হয়, PyMuPDF দিয়ে কম্প্রেস/ক্লিন করার চেষ্টা করা
-        if current_size > max_bytes:
-            doc = fitz.open(pdf_path)
-            metadata = doc.metadata
-            metadata["modDate"] = ""  # ModifyDate ক্লিয়ার রাখা
-            doc.set_metadata(metadata)
-            doc.save(temp_path, garbage=4, deflate=True)
-            doc.close()
+        padding_needed = target_bytes - current_bytes
+        
+        # %PADDING_ লেখার জন্য ৯ বাইট প্রয়োজন
+        if padding_needed < 10:
+            padding_data = b"\n%" + b"X" * (padding_needed - 2)
         else:
-            # যদি ফাইল ৬০ KB-এর ছোট হয়, সাধারণ কপি তৈরি করা
-            doc = fitz.open(pdf_path)
-            metadata = doc.metadata
-            metadata["modDate"] = ""
-            doc.set_metadata(metadata)
-            doc.save(temp_path)
-            doc.close()
+            padding_data = b"\n%PADDING_" + b"X" * (padding_needed - 11)
 
-        temp_size = os.path.getsize(temp_path)
+        with open(pdf_path, "ab") as f:
+            f.write(padding_data)
 
-        # ২. যদি সাইজ ৬০ KB (min_bytes)-এর কম হয়, নিরাপদ Binary Padding যুক্ত করা
-        if temp_size < min_bytes:
-            padding_needed = target_bytes - temp_size
-            with open(temp_path, "ab") as f:
-                # PDF স্পেসিফিকেশন অনুযায়ী নিরাপদ কমেন্ট প্যাডিং
-                f.write(b"\n%PADDING_" + b"X" * (padding_needed - 11))
-
-        # ৩. মূল ফাইলে ওভাররাইট করা
-        os.replace(temp_path, pdf_path)
         final_size = os.path.getsize(pdf_path) / 1024
-        print(f"[Success] '{os.path.basename(pdf_path)}' adjusted to {final_size:.2f} KB.")
+        print(f"[Success] '{file_name}' adjusted to exactly {final_size:.2f} KB.")
 
     except Exception as e:
-        print(f"[Error] Failed processing '{os.path.basename(pdf_path)}': {e}")
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
+        print(f"[Error] Failed processing '{file_name}': {e}")
 
-def process_folder(folder_path):
+
+def process_folder(folder_path, target_kb=66):
     if not os.path.exists(folder_path):
         print(f"Error: Folder '{folder_path}' does not exist!")
         return
@@ -67,12 +55,17 @@ def process_folder(folder_path):
         print("No PDF files found in the specified folder.")
         return
 
-    print(f"Found {len(pdf_files)} PDF file(s). Processing...\n")
+    print(f"Found {len(pdf_files)} PDF file(s). Target size: {target_kb} KB.\n")
     for file_name in pdf_files:
         full_path = os.path.join(folder_path, file_name)
-        adjust_pdf_size(full_path)
+        pad_pdf_to_exact_size(full_path, target_kb)
+
 
 if __name__ == "__main__":
-    # বর্তমান ফোল্ডার অথবা কমান্ড লাইনে দেওয়া ফোল্ডার প্রসেস করবে
+    # ব্যবহার: python script.py [ফোল্ডার_পাথ] [টার্গেট_সাইজ_KB]
     target_folder = sys.argv[1] if len(sys.argv) > 1 else "."
-    process_folder(target_folder)
+    
+    # আপনি চাইলে টার্গেট সাইজ পরিবর্তন করতে পারেন (যেমন: 66)
+    target_size_kb = float(sys.argv[2]) if len(sys.argv) > 2 else 66.0
+
+    process_folder(target_folder, target_size_kb)
